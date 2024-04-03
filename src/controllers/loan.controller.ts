@@ -10,8 +10,14 @@ export const addLoansFromXslx = async (req: Request, res: Response) => {
     try{
         const columnNames = ["customer_id", "loan_id", "loan_amount", "tenure", "interest_rate", "emi", "emis_paid_on_time", "start_date", "end_date"];
         const loans: any = readXlsxFile(path.resolve(__dirname, "../../data/loan_data.xlsx"), columnNames);
+        //remove duplicates loan_id
+        const uniqueLoans = loans.filter((loan: any, index: number, self: any) =>
+            index === self.findIndex((t: any) => (
+                t.loan_id === loan.loan_id
+            ))
+        );
 
-        await Loan.bulkCreate(loans);
+        await Loan.bulkCreate(uniqueLoans);
         res.status(200).send("Loans added successfully");
     }
     catch(err){
@@ -33,8 +39,24 @@ export const addLoan = async (req: Request, res: Response) => {
 export const getLoanById = async (req: Request, res: Response) => {
     try{
         const {loan_id} = req.params;
-        const loan = await Loan.findByPk(loan_id);
-        res.status(200).send(loan);
+        const loan: any = await Loan.findByPk(loan_id);
+        if(!loan){
+            res.status(400).send("No loan found");
+            return;
+        }
+        const customer = await Customer.findByPk(loan.customer_id);
+        if(!customer){
+            res.status(400).send("No customer found");
+            return;
+        }
+        const customerjs = customer.toJSON();
+        const {current_debt: _, ...newCustomer} = customerjs;
+
+        const loanDetails = {
+            ...loan.toJSON(),
+            customer: newCustomer
+        }
+        res.status(200).send(loanDetails);
     }
     catch(err){
         res.status(500).send("Internal Server Error");
@@ -88,61 +110,42 @@ export const checkLoanEligibility = async (req: Request, res: Response) => {
     try{
         const {customer_id, loan_amount, interest_rate, tenure} = req.body;
 
-        /* 
-           If credit score > 50, approve loan
-            ▪ If 50 > credit score > 30, approve loans with interest rate
-            > 12%
-            ▪ If 30> credit score > 10, approve loans with interest rate
-            >16%
-            ▪ If 10> credit score, don’t approve any loans
-            ▪ If sum of all current EMIs > 50% of monthly salary, don’t
-            approve any loans
-            ▪ If the interest rate does not match as per credit limit,
-            correct the interest rate in the response, i.e suppose
-            credit score is calculated to be 20 for a particular loan
-            and the interest_rate is 8%, send a
-            corrected_interest_rate = 16% (lowest of slab) in the
-            response body, corrected
-        */
-
-        const credit_score = await CreditScore.findOne({where: {customer_id}});
-        if(!credit_score){
-            res.status(400).send("Credit score not found");
+        const creditScore: any = await CreditScore.findOne({where: {customer_id}});
+        if(!creditScore){
+            res.status(400).send("No credit score found");
             return;
         }
-
-        const {credit_score: score} = credit_score.toJSON();
-        if(score < 10){
-            return res.status(200).send("Loan not approved");
+        if(creditScore.credit_score > 50){
+            const loan = await Loan.create({customer_id, loan_amount, interest_rate, tenure});
+            res.status(200).send(loan);
+            return;
         }
-        else if(score < 30){
-            if(interest_rate < 16){
-                res.status(200).send({corrected_interest_rate: 16});
+        else if(50 > creditScore.credit_score  && creditScore.credit_score > 30){
+            if(interest_rate > 12){
+                const loan = await Loan.create({customer_id, loan_amount, interest_rate, tenure});
+                res.status(200).send(loan);
                 return;
             }
+            else{
+                
+                return res.status(400).send("Interest rate should be greater than 12%");
+            }
         }
-        else if(score < 50){
-            if(interest_rate < 12){
-                res.status(200).send({corrected_interest_rate: 12});
+        else if(30 > creditScore.credit_score && creditScore.credit_score > 10){
+            if(interest_rate > 16){
+                const loan = await Loan.create({customer_id, loan_amount, interest_rate, tenure});
+                res.status(200).send(loan);
                 return;
+            }
+            else{
+                return res.status(400).send("Interest rate should be greater than 16%");
             }
         }
         else{
-            if(interest_rate < 8){
-                res.status(200).send({corrected_interest_rate: 8});
-                return;
-            }
+            return res.status(400).send("Loan not approved");
         }
 
-        const loans = await Loan.findAll({where: {customer_id}}).then((loans) => loans.map((loan) => loan.toJSON()));
-        const total_loan = loans.reduce((acc, curr: any) => acc + curr.loan_amount, 0);
-        if(total_loan > 0.5 * 0.36 * req.body.monthly_salary){
-            res.status(200).send("Loan not approved");
-            return;
-        }
 
-        return res.status(200).send("Loan approved");
-        
     }
     catch(err){
         console.log(err);

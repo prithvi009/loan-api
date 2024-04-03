@@ -6,6 +6,8 @@ class Loan extends Model {}
 Loan.init({
     loan_id: {
         type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
     },
     customer_id: {
         type: DataTypes.INTEGER,

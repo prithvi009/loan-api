@@ -6,6 +6,8 @@ class Customer extends Model {}
 Customer.init({
     customer_id: {
         type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
     },
     first_name: {
         type: DataTypes.STRING,

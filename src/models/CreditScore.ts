@@ -6,6 +6,8 @@ class CreditScore extends Model {}
 CreditScore.init({
     credit_score_id: {
         type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
     },
     customer_id: {
         type: DataTypes.INTEGER,

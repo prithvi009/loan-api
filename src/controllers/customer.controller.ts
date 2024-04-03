@@ -10,7 +10,9 @@ export const addCustomersFromXslx= async (req: Request, res: Response) => {
     try{
         const columnNames = ['customer_id', 'first_name', 'last_name', 'age', 'phone_number', 'monthly_salary', 'approved_limit', 'current_debt'];
         const customers = readXlsxFile(path.resolve(__dirname, "../../data/customer_data.xlsx"), columnNames);
-        await Customer.bulkCreate(customers);
+        
+        const uniqueCustomers = customers.filter((v:any, i, a) => a.findIndex((t:any) => (t.customer_id === v.customer_id)) === i);
+        await Customer.bulkCreate(uniqueCustomers);
         res.status(200).send("Customers added successfully");
     }
     catch(err){
@@ -25,30 +27,7 @@ export const addCustomer = async (req: Request, res: Response) => {
         const current_debt = 0;
         const customer = await Customer.create({first_name, last_name, age, monthly_salary, phone_number, approved_limit, current_debt});
 
-        const loan: any = await Loan.findOne(customer.customer_id);
-
-        if(!loan){
-            res.status(400).send("No loan found for this customer");
-            return;
-        }
-
-        let credit_score = 0;
-        if(customer.current_debt > approved_limit){
-            credit_score = 0;
-        }
-        else if(loan.emis_paid_on_time > 70 || approved_limit > 200000){
-            credit_score += 100;
-        }
-        else if(loan.emis_paid_on_time > 50 || approved_limit > 100000){
-            credit_score += 70;
-        }
-        else if(loan.emis_paid_on_time > 30 || approved_limit > 50000){
-            credit_score += 50;
-        }
-        else if(loan.emis_paid_on_time > 10 || approved_limit > 10000){
-            credit_score += 30;
-        }
-
+        const credit_score = 100;
         await CreditScore.create({customer_id: customer.customer_id, credit_score});
 
         const {current_debt: _, ...newCustomer} = customer.toJSON();
