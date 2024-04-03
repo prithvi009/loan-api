@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import {sync_models} from './models/index';
 import CustomerRoute from './routes/customer.route';
+import LoanRoute from './routes/loan.routes';
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ function main(){
     app.use(express.urlencoded({ extended: true }));
 
     app.use('/api', CustomerRoute);
+    app.use('/api', LoanRoute);
 
     const port = process.env.PORT || 8080;
 

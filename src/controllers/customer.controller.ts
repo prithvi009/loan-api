@@ -6,9 +6,10 @@ import path from "path";
 
 import { readXlsxFile } from "../utils/readXlsxFile";
 
-export const addCustomers = async (req: Request, res: Response) => {
+export const addCustomersFromXslx= async (req: Request, res: Response) => {
     try{
-        const customers = readXlsxFile(path.resolve(__dirname, "../../data/customer_data.xlsx"));
+        const columnNames = ['customer_id', 'first_name', 'last_name', 'age', 'phone_number', 'monthly_salary', 'approved_limit', 'current_debt'];
+        const customers = readXlsxFile(path.resolve(__dirname, "../../data/customer_data.xlsx"), columnNames);
         await Customer.bulkCreate(customers);
         res.status(200).send("Customers added successfully");
     }
@@ -24,17 +25,31 @@ export const addCustomer = async (req: Request, res: Response) => {
         const current_debt = 0;
         const customer = await Customer.create({first_name, last_name, age, monthly_salary, phone_number, approved_limit, current_debt});
 
-        //assign credit score out of 100 based on loan 
-        const loan = await Loan.findAll({where: {customer_id: customer.customer_id}});
-        let credit_score = 0;
-        if(loan.length > 0){
-            const total_loan = loan.reduce((acc, curr: any) => acc + curr.loan_amount, 0);
-            credit_score = Math.round((approved_limit - total_loan) / approved_limit * 100);
-        }
-        else{
-            credit_score = 100;
+        const loan: any = await Loan.findOne(customer.customer_id);
+
+        if(!loan){
+            res.status(400).send("No loan found for this customer");
+            return;
         }
 
+        let credit_score = 0;
+        if(customer.current_debt > approved_limit){
+            credit_score = 0;
+        }
+        else if(loan.emis_paid_on_time > 70 || approved_limit > 200000){
+            credit_score += 100;
+        }
+        else if(loan.emis_paid_on_time > 50 || approved_limit > 100000){
+            credit_score += 70;
+        }
+        else if(loan.emis_paid_on_time > 30 || approved_limit > 50000){
+            credit_score += 50;
+        }
+        else if(loan.emis_paid_on_time > 10 || approved_limit > 10000){
+            credit_score += 30;
+        }
+
+        await CreditScore.create({customer_id: customer.customer_id, credit_score});
 
         const {current_debt: _, ...newCustomer} = customer.toJSON();
         newCustomer["full_name"] = `${newCustomer.first_name} ${newCustomer.last_name}`;

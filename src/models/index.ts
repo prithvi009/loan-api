@@ -22,7 +22,7 @@ db.credit_score = CreditScore;
 
 
 export async function  sync_models(){
-    db.sequelize.sync({ force: true, alter: true }).then(() => {
+    db.sequelize.sync({ force: false, alter: true }).then(() => {
 		console.log(` Database Synced...`)
     })
 }

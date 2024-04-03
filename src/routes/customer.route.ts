@@ -1,12 +1,11 @@
 import express from 'express';
 
-import { addCustomers } from '../controllers/customer.controller';
+import { addCustomersFromXslx, addCustomer } from '../controllers/customer.controller';
 
 const router = express.Router();
 
-router.get('/customer', addCustomers);
-
-router.post('/customer', addCustomers);
+router.get('/customer/addloanfromxslv', addCustomersFromXslx);
+router.post('/customer', addCustomer);
 
 
 export default router;
