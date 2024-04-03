@@ -10,7 +10,7 @@ export const addLoansFromXslx = async (req: Request, res: Response) => {
     try{
         const columnNames = ["customer_id", "loan_id", "loan_amount", "tenure", "interest_rate", "emi", "emis_paid_on_time", "start_date", "end_date"];
         const loans: any = readXlsxFile(path.resolve(__dirname, "../../data/loan_data.xlsx"), columnNames);
-        //remove duplicates loan_id
+        
         const uniqueLoans = loans.filter((loan: any, index: number, self: any) =>
             index === self.findIndex((t: any) => (
                 t.loan_id === loan.loan_id
@@ -38,7 +38,7 @@ export const addLoan = async (req: Request, res: Response) => {
 
 export const getLoanById = async (req: Request, res: Response) => {
     try{
-        const {loan_id} = req.params;
+        const {loan_id} = req.body;
         const loan: any = await Loan.findByPk(loan_id);
         if(!loan){
             res.status(400).send("No loan found");
@@ -82,7 +82,9 @@ export const makePayment = async (req: Request, res: Response) => {
             const newEmisPaidOnTime = customerLoan.emis_paid_on_time + 1;
             const newEndDate = new Date(customerLoan.end_date);
             newEndDate.setMonth(newEndDate.getMonth() + 1);
+
             await Loan.update({emi: newEmi, emis_paid_on_time: newEmisPaidOnTime, end_date: newEndDate}, {where: {loan_id, customer_id}});
+
             res.status(200).send("Payment made successfully");
             return;
         }
@@ -90,8 +92,10 @@ export const makePayment = async (req: Request, res: Response) => {
             const newEmi = customerLoan.emi;
             const newEmisPaidOnTime = customerLoan.emis_paid_on_time + 1;
             const newEndDate = new Date(customerLoan.end_date);
+
             newEndDate.setMonth(newEndDate.getMonth() + 1);
             await Loan.update({emi:newEmi, emis_paid_on_time: newEmisPaidOnTime, end_date: newEndDate}, {where: {loan_id, customer_id}});
+
             res.status(200).send("Payment made successfully");
             return;
 
@@ -111,18 +115,34 @@ export const checkLoanEligibility = async (req: Request, res: Response) => {
         const {customer_id, loan_amount, interest_rate, tenure} = req.body;
 
         const creditScore: any = await CreditScore.findOne({where: {customer_id}});
+
+        const start_date = new Date(); 
+        console.log(start_date);
+        
+        const end_date = new Date(start_date);
+        end_date.setMonth(end_date.getMonth() + tenure);
+        console.log(end_date);
+
+        if (end_date < start_date) {
+            end_date.setFullYear(end_date.getFullYear() + 1);
+        }
+
         if(!creditScore){
             res.status(400).send("No credit score found");
             return;
         }
         if(creditScore.credit_score > 50){
-            const loan = await Loan.create({customer_id, loan_amount, interest_rate, tenure});
+            const emi = Math.round((loan_amount * interest_rate * Math.pow(1 + interest_rate, tenure)) / (Math.pow(1 + interest_rate, tenure) - 1));
+            
+            const loan = await Loan.create({customer_id, loan_amount,  tenure, interest_rate, emi, emis_paid_on_time: 0 , start_date, end_date});
             res.status(200).send(loan);
             return;
         }
         else if(50 > creditScore.credit_score  && creditScore.credit_score > 30){
             if(interest_rate > 12){
-                const loan = await Loan.create({customer_id, loan_amount, interest_rate, tenure});
+                const emi = Math.round((loan_amount * interest_rate * Math.pow(1 + interest_rate, tenure)) / (Math.pow(1 + interest_rate, tenure) - 1));
+                
+                const loan = await Loan.create({customer_id, loan_amount, interest_rate, tenure, emi, emis_paid_on_time: 0 , start_date, end_date});
                 res.status(200).send(loan);
                 return;
             }
@@ -133,7 +153,8 @@ export const checkLoanEligibility = async (req: Request, res: Response) => {
         }
         else if(30 > creditScore.credit_score && creditScore.credit_score > 10){
             if(interest_rate > 16){
-                const loan = await Loan.create({customer_id, loan_amount, interest_rate, tenure});
+                const emi = Math.round((loan_amount * interest_rate * Math.pow(1 + interest_rate, tenure)) / (Math.pow(1 + interest_rate, tenure) - 1));
+                const loan = await Loan.create({customer_id, loan_amount, interest_rate, tenure, emi, emis_paid_on_time: 0 , start_date, end_date});
                 res.status(200).send(loan);
                 return;
             }
@@ -181,7 +202,7 @@ export const viewStatement = async (req: Request, res: Response) => {
             amount_paid
         };
 
-        res.send(200).send(statement);
+        res.status(200).send(statement);
 
         
     }

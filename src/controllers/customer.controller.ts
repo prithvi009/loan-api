@@ -1,6 +1,5 @@
 import Customer from "../models/Customer";
 import CreditScore from "../models/CreditScore";
-import Loan from "../models/Loan";
 import { Request, Response } from "express";
 import path from "path";
 
@@ -13,6 +12,7 @@ export const addCustomersFromXslx= async (req: Request, res: Response) => {
         
         const uniqueCustomers = customers.filter((v:any, i, a) => a.findIndex((t:any) => (t.customer_id === v.customer_id)) === i);
         await Customer.bulkCreate(uniqueCustomers);
+
         res.status(200).send("Customers added successfully");
     }
     catch(err){
